@@ -36,10 +36,7 @@ fn main() {
             let ext = get_file_extension(&file_name);
 
             // class file based on extension
-            let folder = match get_file_ext_folder(ext, &dir_map) {
-                Some(f) => f,
-                None => String::from("other")
-            };
+            let folder = get_file_ext_folder(ext, &dir_map);
 
             // create folder (if necessary)
             let dir = &dir.trim();
@@ -78,14 +75,14 @@ fn get_file_extension(file_name: &str) -> &str {
         .expect(&format!("Couldn't convert file extension to string for: {file_name}"))
 }
 
-fn get_file_ext_folder(ext: &str, dir_map: &HashMap<&str, Vec<&str>>) -> Option<String> {
+fn get_file_ext_folder(ext: &str, dir_map: &HashMap<&str, Vec<&str>>) -> String {
     for (folder, extension) in dir_map {
         if extension.contains(&ext) {
-            return Some(folder.to_string());
+            return folder.to_string();
         }
     }
 
-    None
+    String::from("other")
 }
 
 fn move_file(source: &str, destination: &str) -> Result<(), io::Error> {
