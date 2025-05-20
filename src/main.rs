@@ -1,11 +1,13 @@
 use std::io::{self, Write};
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::collections::HashMap;
+use colored::Colorize;
+
+// TODO: Check for terminal color support (cause Windows CMD wants to act different for some reason...)
 
 fn main() {
     let mut dir = String::new();
-    // let mut ext_map: HashMap<String, Vec<String>> = HashMap::new();
     let dir_map = HashMap::from([
         ("audio", vec!["wav", "mp3", "flac", "aac", "m4a"]),
         ("video", vec!["mp4", "mkv", "mov", "avi", "webm"]),
@@ -14,6 +16,7 @@ fn main() {
         ("code", vec!["js", "py", "html", "css", "ts", "go", "rs", "php", "java", "cs", "tsx", "jsx"])
     ]);
 
+    // get dir
     print!("Input a directory of your choice: ");
     io::stdout().flush().expect("Failed to flush stdout"); // have to empty the buffer to force the print to actually... print.
 
@@ -23,61 +26,61 @@ fn main() {
 
     let read_dir = fs::read_dir(dir.trim()).expect("Unable to read directory.");
 
+    // get files
     for entry in read_dir {
         let entry = entry.expect("Couldn't get file.");
         let file_type = entry.file_type().expect("Couldn't get file type");
 
         if file_type.is_file() {
-            let file_name = entry.file_name().into_string().expect("huh.");
+            let file_name = entry.file_name().into_string().expect("Couldn't convert file name to string.");
             let ext = get_file_extension(&file_name);
 
-            // ext_map
-            //     .entry(ext.to_string())
-            //     .or_insert(Vec::new())
-            //     .push(file_name);
+            // class file based on extension
+            let folder = match get_file_ext_folder(ext, &dir_map) {
+                Some(f) => f,
+                None => String::from("other")
+            };
 
-            if let Some(folder_type) = find_folder_for_extension(ext, &dir_map) {
-                let src_path = PathBuf::from(dir.trim()).join(&file_name);
-                let mut dst_dir = PathBuf::from(dir.trim());
-                dst_dir.push(folder_type);
+            // create folder (if necessary)
+            let dir = &dir.trim();
+            let new_folder_path = format!("{dir}\\{folder}");
 
-                if !dst_dir.exists() {
-                    fs::create_dir(&dst_dir).expect("Could not create directory");
-                }
+            if let Ok(false) = fs::exists(&new_folder_path) {
+                fs::create_dir(&new_folder_path)
+                    .expect(&format!("Couldn't create {folder} folder."));
+            }
 
-                let mut dst_path = dst_dir.clone();
-                dst_path.push(&file_name);
-
-                move_file(&src_path, &dst_path).expect("Could not move file.");
+            // move file
+            let src = format!("{dir}\\{file_name}");
+            let dst = format!("{new_folder_path}\\{file_name}");
+            
+            if let Ok(()) = move_file(&src, &dst) {
+                println!("{}", format!("Moved {file_name} into ./{folder}").yellow());
             } else {
-                let mut other_dir = PathBuf::from(dir.trim());
-                other_dir.push("other");
-
-                if !other_dir.exists() {
-                    fs::create_dir(&other_dir).expect("Could not create path.");
-                }
-
-                let src_path = PathBuf::from(dir.trim()).join(&file_name);
-                let mut dst_path = other_dir.clone();
-                dst_path.push(&file_name);
-
-                move_file(&src_path, &dst_path).expect("Could not move file.");
+                panic!("{}", format!("Failed to move {file_name} into ./{folder}").red());
             }
         }
     }
 
-    println!("Zhooshed!");
+    println!("{}", "\nZhooshed! Press [Enter] to Exit...".green());
+    let mut exit_input = String::new();
+    io::stdin()
+        .read_line(&mut exit_input)
+        .unwrap();
 }
 
 fn get_file_extension(file_name: &str) -> &str {
-    let ext = Path::new(file_name).extension().expect("Could not fetch extension.");
-
-    ext.to_str().expect("Couldn't convert file extension to string.")
+    let ext = Path::new(file_name)
+                            .extension()
+                            .expect(&format!("Could not fetch file extension for file: {file_name}"));
+    
+    ext.to_str()
+        .expect(&format!("Couldn't convert file extension to string for: {file_name}"))
 }
 
-fn find_folder_for_extension(ext: &str, dir_map: &HashMap<&str, Vec<&str>>) -> Option<String> {
-    for (folder, extensions) in dir_map {
-        if extensions.contains(&ext) {
+fn get_file_ext_folder(ext: &str, dir_map: &HashMap<&str, Vec<&str>>) -> Option<String> {
+    for (folder, extension) in dir_map {
+        if extension.contains(&ext) {
             return Some(folder.to_string());
         }
     }
@@ -85,8 +88,7 @@ fn find_folder_for_extension(ext: &str, dir_map: &HashMap<&str, Vec<&str>>) -> O
     None
 }
 
-fn move_file(src: &Path, dst: &Path) -> std::io::Result<()> {
-    fs::copy(src, dst)?;
-    fs::remove_file(src)?;
+fn move_file(source: &str, destination: &str) -> Result<(), io::Error> {
+    fs::rename(source, destination)?;
     Ok(())
 }
